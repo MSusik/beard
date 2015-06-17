@@ -49,7 +49,7 @@ def normalize_name(name):
 @memoize
 def name_initials(name):
     """Compute the set of initials of a given name."""
-    return set([w[0] for w in name.split()])
+    return [w[0] for w in name.split()]
 
 RE_APOSTROPHES = re.compile('\'+')
 RE_REMOVE_NON_CHARACTERS = re.compile('[^a-zA-Z\',\s]+')
@@ -155,7 +155,7 @@ RE_CHARACTERS = re.compile('\w')
 
 
 @memoize
-def first_name_initial(name):
+def first_name_initial(name, index=0):
     """Get the initial from the first given name if available.
 
     Parameters
@@ -170,14 +170,39 @@ def first_name_initial(name):
         The first initial. Asciified one character, lowercase if available,
         empty string otherwise.
     """
-    try:
-        asciified = asciify(name.split(",")[1]).lower().strip()
-        return RE_CHARACTERS.findall(asciified)[0]
-    except IndexError:
+    if ',' in name:
+        try:
+            asciified = asciify(name.split(",")[1]).lower().strip()
+            return RE_CHARACTERS.findall(asciified)[index]
+        except:
+            return ''
+    else:
         split_name = name.split(" ")
         if len(split_name) > 1:
             # For example "John Smith", without comma. The first string should
             # indicate the first given name.
             asciified = asciify(split_name[0]).lower().strip()
-            return RE_CHARACTERS.findall(asciified)[0]
+            try:
+                return RE_CHARACTERS.findall(asciified)[index]
+            except IndexError:
+                return ""
+        return ""
+
+
+@memoize
+def given_name(name, index=0):
+    if ',' in name:
+        try:
+            asciified = asciify(name.split(",")[1]).lower().strip().split(" ")
+            return asciified[index]
+        except:
+            return ''
+    else:
+        split_name = name.split(" ")
+        if len(split_name) > 1:
+            # For example "John Smith", without comma. The first string should
+            # indicate the first given name.
+            asciified = asciify(split_name[0]).lower().strip().split(" ")
+            if index < len(asciified) - 1:
+                return asciified[index]
         return ""
