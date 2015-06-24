@@ -21,7 +21,7 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
     """Match results of the disambiguation with the present clusters.
 
     In the usual case, the results of disambiguation will have to be integrated
-    into a production database. Before the run of the algorithm, the clusters
+    into a productional database. Before the run of the algorithm, the clusters
     might have been associated to records in the system. Thus, the results
     need to be matched to the existing records.
 
@@ -30,13 +30,15 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
 
     In the assignment problem one needs to specify the costs between vertices.
     Here the cost is computed by ``similarity_function`` which takes a single
-    old cluster and a single new cluster as arguments.
+    old cluster and a single new cluster as arguments. For every new cluster
+    there is also an artificial empty old cluster inserted as there might be
+    no good matches.
 
     Important to note is that one can specify claimed and rejected entities
     for records. After the run of the Hungarian algorithm claimed entities
     will be moved to clusters to which they belonged before and the same
-    will happen to rejected entities if they were reassigned to clusters
-    where they were rejected.
+    will happen to rejected entities if they were assigned by the algorithm to
+    the clusters where they were rejected.
 
     Parameters
     ----------
@@ -46,7 +48,7 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
         records before.
 
     :new_clusters: dict
-        Result of the disambiguation
+        Result of the disambiguation.
 
     :similarity_function: function
         Cost function. Its signature is
@@ -64,9 +66,12 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
         - ``rejections`` is the list of entities that should not belong to
           this record.
 
-        Note that claimed and rejected entities might reassigned after solving
-        the assignment problem. There is no need to take care of it inside
-        the cost function, although it still might be useful.
+        Note that claimed and rejected entities might be reassigned after
+        solving the assignment problem. There is no need to take care of it
+        inside the cost function, although it still might be useful.
+
+        Please remember that every new cluster will be also compared with an
+        artificial empty cluster. The cost function should be aware of that.
 
         The function should return a number. Here is a simple example:
 
