@@ -14,6 +14,7 @@
 """
 
 import munkres
+import six
 
 
 def cluster_assignment(old_clusters, new_clusters, similarity_function,
@@ -113,22 +114,23 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
                                 other_side_visited, this_side_visited,
                                 reversed_other_side[sig])
 
-    assigned = {k: [] for k in old_clusters.keys()}
+    assigned = {k: [] for k in six.iterkeys(old_clusters)}
     unassigned = []
 
     # Variables used in the algorithm.
     # Set of all claimed entities.
-    claims_set = {z for claim_list in claims.values() for z in claim_list}
+    claims_set = {z for claim_list in six.itervalues(claims)
+                  for z in claim_list}
     # Map from entity id to new cluster id.
-    reversed_new = {v: k for k, va in new_clusters.iteritems() for v in va}
+    reversed_new = {v: k for k, va in six.iteritems(new_clusters) for v in va}
     # Map from old id to new cluster id.
-    reversed_old = {v: k for k, va in old_clusters.iteritems() for v in va}
+    reversed_old = {v: k for k, va in six.iteritems(old_clusters) for v in va}
     # Map from the old cluster id to information whether it has been already
     # visited
-    old_visited = {k: False for k in old_clusters.keys()}
+    old_visited = {k: False for k in six.iterkeys(old_clusters)}
     # Map from the new cluster id to information whether it has been already
     # visited
-    new_visited = {k: False for k in new_clusters.keys()}
+    new_visited = {k: False for k in six.iterkeys(new_clusters)}
     # The ids of new clusters currently processed
     current_new = []
     # The ids of old clusters currently processed
@@ -136,7 +138,7 @@ def cluster_assignment(old_clusters, new_clusters, similarity_function,
 
     # For every unvisited node, start o graph traversal in order to create the
     # smallest bipartite connected graph.
-    for k, n in new_clusters.iteritems():
+    for k, n in six.iteritems(new_clusters):
         if not new_visited[k]:
             # The algorithm didn't run on this graph. Dig.
             current_new.append(k)
