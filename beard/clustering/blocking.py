@@ -18,6 +18,7 @@ from __future__ import print_function
 
 import multiprocessing as mp
 import numpy as np
+import os
 
 from sklearn.base import BaseEstimator
 from sklearn.base import clone
@@ -42,7 +43,11 @@ class _SingleClustering(BaseEstimator, ClusterMixin):
 
 def _parallel_fit(fit_, partial_fit_, estimator, verbose, data_queue,
                   result_queue):
-    """Run clusterer's fit function."""
+    """Run clusterer's fit function.
+
+    This function reads block input files from the disk and passes results
+    to the main process.
+    """
     # Status can be one of: 'middle', 'end'
     # 'middle' means that there is a block to compute and the process should
     # continue
@@ -56,6 +61,7 @@ def _parallel_fit(fit_, partial_fit_, estimator, verbose, data_queue,
 
     while status != 'end':
 
+        block = json.load(open(block, "r"))
         b, X, y = block
 
         if len(X) == 1:
@@ -82,7 +88,81 @@ def _parallel_fit(fit_, partial_fit_, estimator, verbose, data_queue,
         result_queue.put((b, clusterer))
         status, block, existing_clusterer = data_queue.get()
 
+    data_queue.put(('end', None, None))
     return
+
+
+class Blocking():
+
+    """Implements blocking the input data."""
+
+    def __init__(self, affinity=None, blocking="single",
+                 blocks_directory="blocks"):
+        """Initialize blocking.
+
+        Parameters
+        ----------
+        :param affinity: string or None
+            If affinity == 'precomputed', then assume that X is a distance
+            matrix.
+
+        :param blocking: string or callable, default "single"
+            The blocking strategy, for mapping samples X to blocks.
+            - "single": group all samples X[i] into the same block;
+            - "precomputed": use `blocks[i]` argument (in `fit`, `partial_fit`
+              or `predict`) as a key for mapping sample X[i] to a block;
+            - callable: use blocking(X)[i] as a key for mapping sample X[i] to
+              a block.
+
+        :param blocks_directory: string
+            Path to the directory, where the blocks should be stored.
+            self.affinity = affinity
+            self.blocking = blocking
+            self.blocks_directory = blocks_directory
+        """
+
+    def _validate(self, X):
+        """Validate hyper-parameters and input data."""
+        if self.blocking == "single":
+            blocks = block_single(X)
+        elif self.blocking == "precomputed":
+            if blocks is not None and len(blocks) == len(X):
+                blocks = column_or_1d(blocks).ravel()
+            else:
+                raise ValueError("Invalid value for blocks. When "
+                                 "blocking='precomputed', blocks needs to be "
+                                 "an array of size len(X).")
+        elif callable(self.blocking):
+            blocks = self.blocking(X)
+        else:
+            raise ValueError("Invalid value for blocking. Allowed values are "
+                             "'single', 'precomputed' or callable.")
+
+        return X, blocks
+
+    def block(self, X, y, blocks=None):
+        """Chop the training data into smaller chunks. Dump them to files.
+
+        A chunk is demarcated by the corresponding block. Each chunk contains
+        only the training examples relevant to given block and a clusterer
+        which will be used to fit the data.
+        """
+        X, blocks = self._validate(X, blocks)
+        unique_blocks = np.unique(blocks)
+
+        for i, b in enumerate(unique_blocks):
+            mask = (blocks == b)
+            X_mask = X[mask, :]
+            if y is not None:
+                y_mask = y[mask]
+            else:
+                y_mask = None
+            if self.affinity == "precomputed":
+                X_mask = X_mask[:, mask]
+
+            json.dump([b, X_mask, y_mask], open(os.path.join(
+                                                self.blocks_directory,
+                                                str(i) + '.json'), "w"))
 
 
 class BlockClustering(BaseEstimator, ClusterMixin):
@@ -105,24 +185,12 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         Array of keys mapping input data to blocks.
     """
 
-    def __init__(self, affinity=None, blocking="single", base_estimator=None,
-                 verbose=0, n_jobs=1):
+    def __init__(self, blocks_directory, blocking="single", affinity=None,
+                 base_estimator=None, verbose=0, n_jobs=1):
         """Initialize.
 
         Parameters
         ----------
-        :param affinity: string or None
-            If affinity == 'precomputed', then assume that X is a distance
-            matrix.
-
-        :param blocking: string or callable, default "single"
-            The blocking strategy, for mapping samples X to blocks.
-            - "single": group all samples X[i] into the same block;
-            - "precomputed": use `blocks[i]` argument (in `fit`, `partial_fit`
-              or `predict`) as a key for mapping sample X[i] to a block;
-            - callable: use blocking(X)[i] as a key for mapping sample X[i] to
-              a block.
-
         :param base_estimator: estimator
             Clustering estimator to fit within each block.
 
@@ -132,13 +200,13 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         :param n_jobs: int
             Number of processes to use.
         """
-        self.affinity = affinity
-        self.blocking = blocking
+        self.blocks_directory = blocks_directory
         self.base_estimator = base_estimator
+        self.blocking = blocking
         self.verbose = verbose
         self.n_jobs = n_jobs
 
-    def _validate(self, X, blocks):
+    def _validate(self, X):
         """Validate hyper-parameters and input data."""
         if self.blocking == "single":
             blocks = block_single(X)
@@ -157,38 +225,8 @@ class BlockClustering(BaseEstimator, ClusterMixin):
 
         return X, blocks
 
-    def _blocks(self, X, y, blocks):
-        """Chop the training data into smaller chunks.
-
-        A chunk is demarcated by the corresponding block. Each chunk contains
-        only the training examples relevant to given block and a clusterer
-        which will be used to fit the data.
-
-        Returns
-        -------
-        :returns: generator
-            Quadruples in the form of ``(block, X, y, clusterer)`` where
-            X and y are the training examples for given block and clusterer is
-            an object with a ``fit`` method.
-        """
-        unique_blocks = np.unique(blocks)
-
-        for b in unique_blocks:
-            mask = (blocks == b)
-            X_mask = X[mask, :]
-            if y is not None:
-                y_mask = y[mask]
-            else:
-                y_mask = None
-            if self.affinity == "precomputed":
-                X_mask = X_mask[:, mask]
-
-            yield (b, X_mask, y_mask)
-
-    def _fit(self, X, y, blocks):
+    def _fit(self):
         """Fit base clustering estimators on X."""
-        self.blocks_ = blocks
-
         processes = []
         # Here the blocks will be passed to subprocesses
         data_queue = mp.Queue()
@@ -203,12 +241,12 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         # First n_jobs blocks are sent into the queue without waiting for the
         # results. This variable is a counter that takes care of this.
         presend = 0
-        blocks_computed = 0
+        last_block = os.listdir(self.blocks_directory)[-1]
+        b = None
 
-        for block in self._blocks(X, y, blocks):
+        for block in os.listdir(self.blocks_directory):
             if presend >= self.n_jobs:
                 b, clusterer = result_queue.get()
-                blocks_computed += 1
                 if clusterer:
                     self.clusterers_[b] = clusterer
             else:
@@ -219,20 +257,19 @@ class BlockClustering(BaseEstimator, ClusterMixin):
                     continue
             data_queue.put(('middle', block, None))
 
+        # Send a message which tells the subprocess that no more data is
+        # available.
+        data_queue.put(('end', None, None))
+
         # Get the last results and tell the subprocesses to finish
-        for x in range(self.n_jobs):
-            if blocks_computed < len(blocks):
-                b, clusterer = result_queue.get()
-                blocks_computed += 1
-                if clusterer:
-                    self.clusterers_[b] = clusterer
-            # Send a message which tells the subprocess that no more data is
-            # available.
-            data_queue.put(('end', None, None))
+        while b != last_block:
+            b, clusterer = result_queue.get()
+            if clusterer:
+                self.clusterers_[b] = clusterer
 
         return self
 
-    def fit(self, X, y=None, blocks=None):
+    def fit(self):
         """Fit individual base clustering estimators for each block.
 
         Parameters
@@ -253,16 +290,13 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         -------
         :returns: self
         """
-        # Validate parameters
-        X, blocks = self._validate(X, blocks)
-
         # Reset attributes
         self.clusterers_ = {}
         self.fit_, self.partial_fit_ = True, False
 
-        return self._fit(X, y, blocks)
+        return self._fit()
 
-    def partial_fit(self, X, y=None, blocks=None):
+    def partial_fit(self):
         """Resume fitting of base clustering estimators, for each block.
 
         This calls `partial_fit` whenever supported by the base estimator.
@@ -286,16 +320,13 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         -------
         :returns: self
         """
-        # Validate parameters
-        X, blocks = self._validate(X, blocks)
-
         # Set attributes if first call
         if not hasattr(self, "clusterers_"):
             self.clusterers_ = {}
 
         self.fit_, self.partial_fit_ = False, True
 
-        return self._fit(X, y, blocks)
+        return self._fit()
 
     def predict(self, X, blocks=None):
         """Predict data.

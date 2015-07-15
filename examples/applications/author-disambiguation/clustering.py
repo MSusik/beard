@@ -45,29 +45,6 @@ from beard.clustering import ScipyHierarchicalClustering
 from beard.metrics import b3_f_score
 
 
-def _affinity(X, step=10000):
-    """Custom affinity function, using a pre-learned distance estimator."""
-    # Assumes that 'distance_estimator' lives in global, making things fast
-    global distance_estimator
-
-    all_i, all_j = np.triu_indices(len(X), k=1)
-    n_pairs = len(all_i)
-    distances = np.zeros(n_pairs, dtype=np.float64)
-
-    for start in range(0, n_pairs, step):
-        end = min(n_pairs, start+step)
-        Xt = np.empty((end-start, 2), dtype=np.object)
-
-        for k, (i, j) in enumerate(zip(all_i[start:end],
-                                       all_j[start:end])):
-            Xt[k, 0], Xt[k, 1] = X[i, 0], X[j, 0]
-
-        Xt = distance_estimator.predict_proba(Xt)[:, 1]
-        distances[start:end] = Xt[:]
-
-    return distances
-
-
 def clustering(input_signatures, input_records, distance_model,
                input_clusters=None, output_clusters=None,
                verbose=1, n_jobs=-1, clustering_method="average",
@@ -134,18 +111,17 @@ def clustering(input_signatures, input_records, distance_model,
     distance_estimator = pickle.load(open(distance_model, "rb"))
     signatures, records = load_signatures(input_signatures,
                                           input_records)
+    del records
 
     indices = {}
-    X = np.empty((len(signatures), 1), dtype=np.object)
     for i, signature in enumerate(sorted(signatures.values(),
                                          key=lambda s: s["signature_id"])):
-        X[i, 0] = signature
         indices[signature["signature_id"]] = i
 
     # Semi-supervised block clustering
     if input_clusters:
         true_clusters = json.load(open(input_clusters, "r"))
-        y_true = -np.ones(len(X), dtype=np.int)
+        y_true = -np.ones(len(signatures), dtype=np.int)
 
         for label, signature_ids in true_clusters.items():
             for signature_id in signature_ids:
@@ -153,11 +129,11 @@ def clustering(input_signatures, input_records, distance_model,
 
         if clustering_test_size is not None:
             train, test = train_test_split(
-                np.arange(len(X)),
+                np.arange(len(signatures)),
                 test_size=clustering_test_size,
                 random_state=clustering_random_state)
 
-            y = -np.ones(len(X), dtype=np.int)
+            y = -np.ones(len(signatures), dtype=np.int)
             y[train] = y_true[train]
 
         else:
@@ -165,6 +141,8 @@ def clustering(input_signatures, input_records, distance_model,
 
     else:
         y = None
+
+    del signatures
 
     clusterer = BlockClustering(
         blocking=block_last_name_first_initial,
