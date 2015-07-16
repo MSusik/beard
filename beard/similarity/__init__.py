@@ -9,12 +9,16 @@
 
 """Similarity learning algorithms."""
 
-from .pairs import PairTransformer
-from .pairs import CosineSimilarity
 from .pairs import AbsoluteDifference
+from .pairs import CharacterEquality
+from .pairs import CosineSimilarity
 from .pairs import JaccardSimilarity
+from .pairs import PairTransformer
+from .pairs import StringDistance
 
-__all__ = ("PairTransformer",
+__all__ = ("AbsoluteDifference",
+           "CharacterEquality",
            "CosineSimilarity",
-           "AbsoluteDifference",
-           "JaccardSimilarity")
+           "JaccardSimilarity",
+           "PairTransformer",
+           "StringDistance")

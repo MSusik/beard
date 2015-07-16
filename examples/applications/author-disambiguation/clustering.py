@@ -34,6 +34,7 @@ from utils import get_abstract
 from utils import get_coauthors_from_range
 from utils import get_keywords
 from utils import get_collaborations
+from utils import get_topics
 from utils import get_year
 from utils import group_by_signature
 from utils import load_signatures

@@ -14,6 +14,7 @@
 """
 from __future__ import division
 
+import jellyfish
 import numpy as np
 import scipy.sparse as sp
 
@@ -360,3 +361,125 @@ class JaccardSimilarity(BaseEstimator, TransformerMixin):
             Xt[np.where(denominator == 0)[0]] = 0.
 
         return np.array(Xt).reshape(-1, 1)
+
+
+class CharacterEquality(BaseEstimator, TransformerMixin):
+
+    """Equality of characters on paired data.
+
+    Returns 1 in case of equality, 0 otherwise.
+
+    In case empty characters are provided, a uncertanity value (0.5) is output.
+    """
+
+    def fit(self, X, y=None):
+        """(Do nothing).
+
+        Parameters
+        ----------
+        :param X: array-like, shape (n_samples, n_features)
+            Input data.
+
+        Returns
+        -------
+        :returns: self
+        """
+        return self
+
+    def transform(self, X):
+        """Compute equality.
+
+        Rows i in ``X`` are assumed to represent pairs, where
+        ``X[i, :n_features]`` and ``X[i, n_features:]`` correspond to their two
+        individual elements, each representing a character.
+
+        Parameters
+        ----------
+        :param X: array-like, shape (n_samples, n_features)
+            Input data.
+
+        Returns
+        -------
+        :returns: Xt array-like, shape (n_samples, 1)
+            The transformed data.
+        """
+        def equality2(x, y):
+            if x != y:
+                return 0.
+            elif x == "":
+                return 0.5
+            else:
+                return 1
+
+        X1, X2 = np.split(X, 2)
+
+        vectorized = np.vectorize(chracter_equality)
+        n_samples = X1.shape[0]
+
+        val = vectorized(X1, X2)
+        return val.reshape((n_samples, 1))
+
+
+class StringDistance(BaseEstimator, TransformerMixin):
+
+    """Distance between strings on paired data.
+
+    It can be fed with a custom similarity function. By default jaro winkler is
+    used.
+    """
+
+    def __init__(self, similarity_function=jellyfish.jaro_winkler):
+        """Initialize the transformer.
+
+        Parameters
+        ----------
+        :param similarity_function: function (string, string) -> float
+            Function that will evaluate similarity of the paired data.
+        """
+        self.similarity_function = similarity_function
+
+    def _use_similarity(self, x, y):
+
+        if len(x) <= 1 or len(y) <= 1:
+            return -1
+
+        return self.similarity_function(x, y)
+
+    def fit(self, X, y=None):
+        """(Do nothing).
+
+        Parameters
+        ----------
+        :param X: array-like, shape (n_samples, n_features)
+            Input data.
+
+        Returns
+        -------
+        :returns: self
+        """
+        return self
+
+    def transform(self, X):
+        """Compute string similarity.
+
+        Rows i in ``X`` are assumed to represent pairs, where
+        ``X[i, :n_features]`` and ``X[i, n_features:]`` correspond to their two
+        individual elements, each representing a string.
+
+        Parameters
+        ----------
+        :param X: array-like, shape (n_samples, n_features)
+            Input data.
+
+        Returns
+        -------
+        :returns: Xt array-like, shape (n_samples, 1)
+            The transformed data.
+        """
+        X1, X2 = np.split(X, 2)
+
+        vectorized = np.vectorize(self._use_similarity)
+        n_samples = X1.shape[0]
+
+        val = vectorized(X1, X2)
+        return val.reshape((n_samples, 1))

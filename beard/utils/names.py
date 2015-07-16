@@ -155,7 +155,7 @@ RE_CHARACTERS = re.compile('\w')
 
 
 @memoize
-def first_name_initial(name):
+def first_name_initial(name, index=0):
     """Get the initial from the first given name if available.
 
     Parameters
@@ -163,6 +163,9 @@ def first_name_initial(name):
     :param name: string
         Name of the author. Usually it should be in the format:
         surnames, first names.
+    :param index: integer
+        Which given name's initial should be returned. 0 for first, 1 for
+        second, etc.
 
     Returns
     -------
@@ -172,8 +175,11 @@ def first_name_initial(name):
     """
     try:
         asciified = asciify(name.split(",")[1]).lower().strip()
-        return RE_CHARACTERS.findall(asciified)[0]
+        names = asciified.split(" ")
+        return RE_CHARACTERS.findall(asciified[index])[0]
     except IndexError:
+        if index > 0:
+            return ""
         split_name = name.split(" ")
         if len(split_name) > 1:
             # For example "John Smith", without comma. The first string should
@@ -181,3 +187,35 @@ def first_name_initial(name):
             asciified = asciify(split_name[0]).lower().strip()
             return RE_CHARACTERS.findall(asciified)[0]
         return ""
+
+
+@memoize
+def given_name(full_name, index):
+    """Get a specific given name from full name.
+
+    Parameters
+    ----------
+    :param full_name: string
+        Name of the author. Usually it should be in the format:
+        surnames, first names.
+    :param index: integer
+        Which given name should be returned. 0 for the first, 1 for the second,
+        etc.
+
+    Returns
+    -------
+    :return: string
+        Given name or empty string if it is not available.
+    """
+    try:
+        given_names = full_name.split(',')[1]
+        try:
+            return given_names.split(' ')[index]
+        except IndexError:
+            return ""
+    except IndexError:
+        names = full_name.split(' ')
+        try:
+            return names[index]
+        except IndexError:
+            return ""
