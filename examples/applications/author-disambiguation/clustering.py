@@ -23,6 +23,8 @@ import numpy as np
 
 from sklearn.cross_validation import train_test_split
 
+import sharedmem as shm
+
 # These imports are used during unpickling.
 from utils import get_author_full_name
 from utils import get_author_other_names
@@ -135,7 +137,7 @@ def clustering(input_signatures, input_records, distance_model,
                                           input_records)
 
     indices = {}
-    X = np.empty((len(signatures), 1), dtype=np.object)
+    X = shm.empty((len(signatures), 1), dtype=np.object)
     for i, signature in enumerate(sorted(signatures.values(),
                                          key=lambda s: s["signature_id"])):
         X[i, 0] = signature
@@ -144,7 +146,7 @@ def clustering(input_signatures, input_records, distance_model,
     # Semi-supervised block clustering
     if input_clusters:
         true_clusters = json.load(open(input_clusters, "r"))
-        y_true = -np.ones(len(X), dtype=np.int)
+        y_true = -shm.ones(len(X), dtype=np.int)
 
         for label, signature_ids in true_clusters.items():
             for signature_id in signature_ids:
@@ -156,7 +158,7 @@ def clustering(input_signatures, input_records, distance_model,
                 test_size=clustering_test_size,
                 random_state=clustering_random_state)
 
-            y = -np.ones(len(X), dtype=np.int)
+            y = -shm.ones(len(X), dtype=np.int)
             y[train] = y_true[train]
 
         else:

@@ -41,7 +41,7 @@ class _SingleClustering(BaseEstimator, ClusterMixin):
 
 
 def _parallel_fit(fit_, partial_fit_, estimator, verbose, data_queue,
-                  result_queue):
+                  result_queue, X_unmasked, y_unmasked, affinity):
     """Run clusterer's fit function."""
     # Status can be one of: 'middle', 'end'
     # 'middle' means that there is a block to compute and the process should
@@ -56,7 +56,18 @@ def _parallel_fit(fit_, partial_fit_, estimator, verbose, data_queue,
 
     while status != 'end':
 
-        b, X, y = block
+        b, mask = block
+
+        ###
+        X = X_unmasked[mask, :]
+        if y_unmasked is not None:
+            y = y_unmasked[mask]
+        else:
+            y = None
+        if affinity == "precomputed":
+            X = X[:, mask]
+
+        ###
 
         if len(X) == 1:
             clusterer = _SingleClustering()
@@ -176,15 +187,16 @@ class BlockClustering(BaseEstimator, ClusterMixin):
 
         for b in unique_blocks:
             mask = (blocks == b)
-            X_mask = X[mask, :]
-            if y is not None:
-                y_mask = y[mask]
-            else:
-                y_mask = None
-            if self.affinity == "precomputed":
-                X_mask = X_mask[:, mask]
+            # X_mask = X[mask, :]
+            # if y is not None:
+            #     y_mask = y[mask]
+            # else:
+            #     y_mask = None
+            # if self.affinity == "precomputed":
+            #     X_mask = X_mask[:, mask]
 
-            yield (b, X_mask, y_mask)
+            # yield (b, X_mask, y_mask)
+            yield (b, mask)
 
     def _fit(self, X, y, blocks):
         """Fit base clustering estimators on X."""
@@ -198,7 +210,8 @@ class BlockClustering(BaseEstimator, ClusterMixin):
         for x in range(self.n_jobs):
             processes.append(mp.Process(target=_parallel_fit, args=(self.fit_,
                              self.partial_fit_, self.base_estimator,
-                             self.verbose, data_queue, result_queue)))
+                             self.verbose, data_queue, result_queue, X, y,
+                             self.affinity)))
             processes[-1].start()
 
         # First n_jobs blocks are sent into the queue without waiting for the
