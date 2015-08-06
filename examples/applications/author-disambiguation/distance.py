@@ -45,6 +45,7 @@ from utils import get_topics
 from utils import get_year
 from utils import group_by_signature
 from utils import load_signatures
+from utils import ColumnRemover
 
 from beard.similarity import AbsoluteDifference
 from beard.similarity import CosineSimilarity
@@ -55,9 +56,22 @@ from beard.similarity import ElementMultiplication
 from beard.utils import FuncTransformer
 from beard.utils import Shaper
 
+from sklearn.base import BaseEstimator
+from sklearn.base import TransformerMixin
+
 
 def _build_distance_estimator(X, y, verbose=0, ethnicity_estimator=None):
     """Build a vector reprensation of a pair of signatures."""
+
+    min_importance, feature_array = json.load(open("array.json", "r"))
+    features_removed = max(feature_array)
+    index = 0
+    while min_importance or feature_array[index]:
+        if not feature_array[index]:
+            min_importance -= 1
+        index += 1
+    feature_array[index] = features_removed + 1
+
     transformer = FeatureUnion([
         ("author_full_name_similarity", Pipeline([
             ("pairs", PairTransformer(element_transformer=Pipeline([
@@ -206,13 +220,23 @@ def _build_distance_estimator(X, y, verbose=0, ethnicity_estimator=None):
     # Train a classifier on these vectors
     classifier = GradientBoostingClassifier(n_estimators=500,
                                             max_depth=9,
-                                            max_features=10,
+                                            max_features=min(10, sum([1 for x in feature_array if not x])),
                                             learning_rate=0.125,
                                             verbose=verbose)
 
+    cr = ColumnRemover()
+
+    save_tuple = [-1, feature_array]
+    json.dump(save_tuple, open("array.json", "w"))
+
     # Return the whole pipeline
     estimator = Pipeline([("transformer", transformer),
+                          ("column_remover", cr),
                           ("classifier", classifier)]).fit(X, y)
+
+    feature_imp = classifier.feature_importances_
+    save_tuple = [np.argmin(feature_imp), feature_array]
+    json.dump(save_tuple, open("array.json", "w"))
 
     return estimator
 

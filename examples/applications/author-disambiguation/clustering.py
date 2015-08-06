@@ -39,6 +39,7 @@ from utils import get_topics
 from utils import get_year
 from utils import group_by_signature
 from utils import load_signatures
+from utils import ColumnRemover
 
 from beard.clustering import BlockClustering
 from beard.clustering import block_last_name_first_initial

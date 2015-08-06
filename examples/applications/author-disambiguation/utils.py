@@ -21,6 +21,22 @@ from beard.utils import name_initials
 from beard.utils import normalize_name
 from beard.utils import given_name_initial
 
+from sklearn.base import BaseEstimator
+from sklearn.base import TransformerMixin
+
+
+
+class ColumnRemover(BaseEstimator, TransformerMixin):
+
+        def fit(self, X, y=None):
+            return self
+
+        def transform(self, X, y=None):
+            import json
+            _, feature_arr = json.load(open("array.json", "r"))
+            indices = [i for i,v in enumerate(feature_arr) if not v]
+            return X[:, indices]
+
 
 def load_signatures(signatures_filename, records_filename):
     """Load signatures from JSON files.
