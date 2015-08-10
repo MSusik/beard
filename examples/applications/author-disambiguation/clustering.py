@@ -39,9 +39,12 @@ from utils import get_topics
 from utils import get_year
 from utils import group_by_signature
 from utils import load_signatures
+from utils import get_surname
+from utils import get_first_initial
 
 from beard.clustering import BlockClustering
 from beard.clustering import block_last_name_first_initial
+from beard.clustering import block_phonetic
 from beard.clustering import ScipyHierarchicalClustering
 from beard.metrics import b3_f_score
 from beard.metrics import b3_precision_recall_fscore
@@ -71,11 +74,28 @@ def _affinity(X, step=10000):
     return distances
 
 
+def _block_dm_1(X):
+    return block_phonetic(X, 1, "double_metaphone")
+
+
+def _block_dm_inf(X):
+    return block_phonetic(X, 1000000, "double_metaphone")
+
+
+def _block_nysiis_1(X):
+    return block_phonetic(X, 1, "nysiis")
+
+
+def _block_nysiis_inf(X):
+    return block_phonetic(X, 1000000, "nysiis")
+
+
 def clustering(input_signatures, input_records, distance_model,
                input_clusters=None, output_clusters=None,
                verbose=1, n_jobs=-1, clustering_method="average",
                train_signatures_file=None, clustering_threshold=None,
-               results_file=None):
+               results_file=None, blocking_function="last_name_first_initial",
+               blocking_threshold=1):
     """Cluster signatures using a pretrained distance model.
 
     Parameters
@@ -170,8 +190,21 @@ def clustering(input_signatures, input_records, distance_model,
     else:
         y = None
 
+    block_function = block_last_name_first_initial
+
+    if blocking_function == "double_metaphone":
+        if blocking_threshold == 1:
+            block_function = _block_dm_1
+        else:
+            blocking_function = _block_dm_inf
+    elif blocking_function == "nysiis":
+        if blocking_threshold == 1:
+            block_function = _block_nysiis_1
+        else:
+            block_function = _block_nysiis_inf
+
     clusterer = BlockClustering(
-        blocking=block_last_name_first_initial,
+        blocking=block_function,
         base_estimator=ScipyHierarchicalClustering(
             affinity=_affinity,
             threshold=clustering_threshold,
@@ -248,10 +281,14 @@ if __name__ == "__main__":
     parser.add_argument("--results_file", default=None, type=str)
     parser.add_argument("--verbose", default=1, type=int)
     parser.add_argument("--n_jobs", default=1, type=int)
+    parser.add_argument("--blocking_function",
+                        default="last_name_first_initial", type=str)
+    parser.add_argument("--blocking_threshold", default=1, type=int)
     args = parser.parse_args()
 
     clustering(args.input_signatures, args.input_records, args.distance_model,
                args.input_clusters, args.output_clusters,
                args.verbose, args.n_jobs, args.clustering_method,
                args.train_signatures, args.clustering_threshold,
-               args.results_file)
+               args.results_file, args.blocking_function,
+               args.blocking_threshold)

@@ -33,6 +33,8 @@ from utils import get_author_other_names
 from utils import get_author_affiliation
 from utils import get_first_given_name
 from utils import get_second_given_name
+from utils import get_surname
+from utils import get_first_initial
 from utils import get_second_initial
 from utils import get_title
 from utils import get_journal
@@ -76,6 +78,19 @@ def _build_distance_estimator(X, y, verbose=0, ethnicity_estimator=None):
             ), groupby=group_by_signature)),
             ("combiner", StringDistance(
                 similarity_function="character_equality"))
+        ])),
+        ("author_first_initial_similarity", Pipeline([
+            ("pairs", PairTransformer(element_transformer=FuncTransformer(
+                func=get_first_initial
+            ), groupby=group_by_signature)),
+            ("combiner", StringDistance(
+                similarity_function="character_equality"))
+        ])),
+        ("author_first_surname_similarity", Pipeline([
+            ("pairs", PairTransformer(element_transformer=FuncTransformer(
+                func=get_surname
+            ), groupby=group_by_signature)),
+            ("combiner", StringDistance())
         ])),
         ("author_first_given_name_similarity", Pipeline([
             ("pairs", PairTransformer(element_transformer=FuncTransformer(
