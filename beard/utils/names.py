@@ -52,34 +52,35 @@ def normalize_name(name, drop_common_affixes=True):
         Normalized name, formatted as "lastnames first names" where last names
         are joined.
     """
-    name = asciify(name).lower()
-    name = RE_NORMALIZE_WHOLE_NAME.sub(' ', name)
-    names = name.split(",", 1)
-    if not names:
-        return ""
-    if len(names) == 1:
-        # There was no comma in the name
-        all_names = names[0].split(" ")
-        if len(all_names) > 1:
-            # The last string should be the surname
-            names = [all_names[-1], " ".join(all_names[:-1])]
-        else:
-            names = [all_names[0], ""]
-
-    if drop_common_affixes:
-        last_names = names[0].split(" ")
-        without_affixes = list(filter(lambda x: x not in DROPPED_AFFIXES,
-                               last_names))
-        if len(without_affixes) > 0:
-            names[0] = "".join(without_affixes)
-    else:
-        names[0] = re.sub('\s', '', names[0])
-
-    name = "%s, %s" % (names[0], names[1])
-    name = RE_NORMALIZE_OTHER_NAMES.sub(" ", name)
-    name = name.strip()
-
     return name
+    #name = asciify(name).lower()
+    #name = RE_NORMALIZE_WHOLE_NAME.sub(' ', name)
+    #names = name.split(",", 1)
+    #if not names:
+    #    return ""
+    #if len(names) == 1:
+    #    # There was no comma in the name
+    #    all_names = names[0].split(" ")
+    #    if len(all_names) > 1:
+    #        # The last string should be the surname
+    #        names = [all_names[-1], " ".join(all_names[:-1])]
+    #    else:
+    #        names = [all_names[0], ""]
+
+    #if drop_common_affixes:
+    #    last_names = names[0].split(" ")
+    #    without_affixes = list(filter(lambda x: x not in DROPPED_AFFIXES,
+    #                           last_names))
+    #    if len(without_affixes) > 0:
+    #        names[0] = "".join(without_affixes)
+    #else:
+    #    names[0] = re.sub('\s', '', names[0])
+
+    #name = "%s, %s" % (names[0], names[1])
+    #name = RE_NORMALIZE_OTHER_NAMES.sub(" ", name)
+    #name = name.strip()
+
+    #return name
 
 
 @memoize
